@@ -1,0 +1,2252 @@
+---
+title: "Housing Pressure in Toronto"
+format:
+  dashboard:
+    theme: flatly
+    orientation: columns
+    expandable: false
+    scrolling: true
+server: shiny
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* ==========================================================================
+   Housing Pressure in Toronto — dashboard stylesheet
+   Page chrome only. No rule here changes how any figure is drawn.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Design tokens
+   -------------------------------------------------------------------------- */
+:root {
+  --hp-bg:          #eef2f7;
+  --hp-surface:     #ffffff;
+  --hp-surface-alt: #f8fafc;
+
+  --hp-ink:         #0f172a;
+  --hp-ink-2:       #334155;
+  --hp-muted:       #64748b;
+  --hp-faint:       #94a3b8;
+
+  --hp-line:        #e2e8f0;
+  --hp-line-soft:   #eef2f6;
+
+  --hp-accent:      #1d4ed8;
+  --hp-accent-dk:   #1e3a8a;
+  --hp-accent-soft: #eaf1fe;
+
+  --hp-nav-a:       #0f172a;
+  --hp-nav-b:       #1e293b;
+
+  --hp-radius:      14px;
+  --hp-radius-sm:   9px;
+  --hp-radius-lg:   22px;
+
+  --hp-shadow-sm:   0 1px 2px rgba(15, 23, 42, 0.05);
+  --hp-shadow:      0 1px 2px rgba(15, 23, 42, 0.04),
+                    0 10px 26px -16px rgba(15, 23, 42, 0.28);
+  --hp-shadow-lg:   0 2px 4px rgba(15, 23, 42, 0.04),
+                    0 20px 44px -24px rgba(15, 23, 42, 0.32);
+
+  --hp-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+             Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* --------------------------------------------------------------------------
+   2. Base typography and page surface
+   -------------------------------------------------------------------------- */
+body {
+  font-family: var(--hp-font);
+  background: var(--hp-bg);
+  color: var(--hp-ink-2);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.quarto-dashboard-content {
+  padding: 1rem 1.15rem 1.6rem;
+}
+
+::selection {
+  background: #dbe7fb;
+  color: var(--hp-ink);
+}
+
+/* Focus rings that are visible without being loud */
+.quarto-dashboard a:focus-visible,
+.quarto-dashboard button:focus-visible,
+.quarto-dashboard input:focus-visible,
+.quarto-dashboard select:focus-visible {
+  outline: 2px solid var(--hp-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Scrollbars */
+.quarto-dashboard *::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+.quarto-dashboard *::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 99px;
+}
+
+.quarto-dashboard *::-webkit-scrollbar-thumb:hover {
+  background: #adb9c9;
+  background-clip: content-box;
+}
+
+.quarto-dashboard *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* --------------------------------------------------------------------------
+   3. Navbar
+   -------------------------------------------------------------------------- */
+.quarto-dashboard .navbar {
+  background: linear-gradient(100deg, var(--hp-nav-a) 0%, var(--hp-nav-b) 62%, #24344a 100%);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.9);
+  box-shadow: 0 6px 22px -14px rgba(15, 23, 42, 0.75);
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
+.quarto-dashboard .navbar-brand,
+.quarto-dashboard .navbar-title,
+.quarto-dashboard .dashboard-title {
+  font-size: 1.02rem;
+  font-weight: 750;
+  letter-spacing: -0.012em;
+  color: #f8fafc !important;
+}
+
+/* Thin accent rule under the brand, echoing the figure palette */
+.quarto-dashboard .navbar-brand::after,
+.quarto-dashboard .navbar-title::after {
+  content: "";
+  display: block;
+  height: 3px;
+  width: 42px;
+  margin-top: 4px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #E69F00, #56B4E9 45%, #009E73);
+}
+
+/* The page titles are long. Let the tab row wrap onto a second line rather
+   than push the document wider than the window. */
+.quarto-dashboard .navbar > .container-fluid,
+.quarto-dashboard .navbar > .container,
+.quarto-dashboard .navbar-container,
+.quarto-dashboard .navbar-collapse {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  flex-wrap: wrap;
+}
+
+.quarto-dashboard .navbar-nav {
+  gap: 0.15rem;
+  flex-wrap: wrap;
+  row-gap: 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.quarto-dashboard .nav-tabs .nav-link,
+.quarto-dashboard .navbar-nav .nav-link {
+  white-space: nowrap;
+  font-size: 0.9rem;
+  font-weight: 550;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  color: rgba(226, 232, 240, 0.82) !important;
+  border: 1px solid transparent;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Tab sizing: keep the five figure tabs together on a single row for as
+   long as the window allows. */
+@media (max-width: 1600px) {
+  .quarto-dashboard .navbar-nav .nav-link {
+    font-size: 0.84rem;
+    padding: 0.34rem 0.6rem;
+  }
+}
+
+@media (max-width: 1400px) {
+  /* All six titles no longer fit across one line. Rather than let the break
+     land wherever it happens to fall, put Overview on the first row on its
+     own and keep Figures 1-5 together on the second. */
+  .quarto-dashboard .navbar-nav > .nav-item:first-child {
+    flex: 0 0 100%;
+    max-width: 100%;
+    display: flex;
+  }
+
+  /* Fallback for navbar markup without <li> wrappers */
+  .quarto-dashboard .navbar-nav > .nav-link:first-child {
+    margin-right: 100%;
+  }
+
+  .quarto-dashboard .navbar-nav .nav-link {
+    font-size: 0.82rem;
+    padding: 0.32rem 0.55rem;
+  }
+}
+
+@media (max-width: 1150px) {
+  .quarto-dashboard .navbar-nav .nav-link {
+    font-size: 0.76rem;
+    padding: 0.28rem 0.45rem;
+  }
+
+  .quarto-dashboard .navbar-brand,
+  .quarto-dashboard .navbar-title,
+  .quarto-dashboard .dashboard-title {
+    font-size: 0.92rem;
+  }
+}
+
+/* Only on genuinely small screens do individual titles break across lines */
+@media (max-width: 860px) {
+  .quarto-dashboard .navbar-nav .nav-link {
+    white-space: normal;
+  }
+}
+
+.quarto-dashboard .navbar-nav .nav-link:hover {
+  background: rgba(148, 163, 184, 0.16);
+  color: #ffffff !important;
+}
+
+.quarto-dashboard .navbar-nav .nav-link.active,
+.quarto-dashboard .navbar-nav .show > .nav-link {
+  background: rgba(96, 165, 250, 0.2);
+  border-color: rgba(147, 197, 253, 0.45);
+  color: #ffffff !important;
+  font-weight: 650;
+}
+
+/* --------------------------------------------------------------------------
+   4. Scrolling layout — no fixed-height traps
+   (behaviour preserved from the original stylesheet)
+   -------------------------------------------------------------------------- */
+html, body {
+  height: auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  max-width: 100%;
+}
+
+.quarto-dashboard,
+.quarto-dashboard-content,
+.tab-content,
+.tab-pane {
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+/* Flex and grid children default to min-width:auto, which lets wide content
+   (long labels, wide SVGs) refuse to shrink and force a sideways scrollbar.
+   Allowing them to shrink is what keeps everything inside the window. */
+.quarto-dashboard,
+.quarto-dashboard-content,
+.tab-content,
+.tab-pane,
+.bslib-sidebar-layout,
+.bslib-grid,
+.quarto-dashboard-content .card,
+.quarto-dashboard-content .card-body,
+.html-fill-container,
+.html-fill-item {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+/* Figure pages: plot column fills remaining space; sidebar stays fixed */
+.figure-col {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+}
+
+/* Visualization widgets fill width, stay tall enough to read */
+.quarto-dashboard-content .html-widget,
+.quarto-dashboard-content .girafe,
+.quarto-dashboard-content .girafe_container_std {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 600px;
+}
+
+.quarto-dashboard-content .girafe_container_std svg {
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* --------------------------------------------------------------------------
+   5. Cards
+   -------------------------------------------------------------------------- */
+.quarto-dashboard-content .card {
+  background: var(--hp-surface);
+  border: 1px solid var(--hp-line);
+  border-radius: var(--hp-radius);
+  box-shadow: var(--hp-shadow);
+  overflow: hidden;
+}
+
+.quarto-dashboard-content .card-header {
+  background: var(--hp-surface-alt);
+  border-bottom: 1px solid var(--hp-line);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: -0.008em;
+  color: var(--hp-ink);
+  padding: 0.7rem 0.95rem;
+}
+
+.quarto-dashboard-content .card-body {
+  padding: 0.65rem 0.85rem;
+}
+
+/* --------------------------------------------------------------------------
+   6. Sidebar shell
+   -------------------------------------------------------------------------- */
+.quarto-dashboard-content .sidebar {
+  background: linear-gradient(180deg, #fbfcfe 0%, #f5f7fb 100%);
+  border-left: 4px solid var(--hp-line);
+  padding: 1.05rem 1.1rem 1.3rem;
+}
+
+.sidebar h3,
+.sidebar .control-label {
+  margin-top: 0.9rem;
+}
+
+.sidebar .control-label,
+.sidebar .form-label,
+.sidebar label.control-label {
+  font-size: 0.86rem;
+  font-weight: 650;
+  color: var(--hp-ink);
+  letter-spacing: 0.005em;
+  margin-bottom: 0.3rem;
+}
+
+.sidebar .form-group,
+.sidebar .shiny-input-container {
+  margin-bottom: 1.05rem;
+}
+
+/* Form controls */
+.sidebar .form-control,
+.sidebar .form-select,
+.sidebar select,
+.sidebar .selectize-input {
+  border-radius: var(--hp-radius-sm);
+  border: 1px solid #d5dde8;
+  background: #ffffff;
+  box-shadow: var(--hp-shadow-sm);
+  font-size: 0.93rem;
+  color: var(--hp-ink-2);
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.sidebar .form-control:hover,
+.sidebar .form-select:hover,
+.sidebar .selectize-input:hover {
+  border-color: #b9c8dc;
+}
+
+.sidebar .form-control:focus,
+.sidebar .form-select:focus,
+.sidebar .selectize-input.focus {
+  border-color: var(--hp-accent);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.14);
+}
+
+/* selectize multi-select chips */
+.sidebar .selectize-input > .item {
+  background: var(--hp-accent-soft) !important;
+  color: var(--hp-accent-dk) !important;
+  border: 1px solid #c9dcfb !important;
+  border-radius: 999px !important;
+  padding: 0.1rem 0.55rem !important;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.sidebar .selectize-dropdown .active {
+  background: var(--hp-accent-soft);
+  color: var(--hp-accent-dk);
+}
+
+/* Radios and checkboxes */
+.sidebar .form-check,
+.sidebar .radio,
+.sidebar .checkbox {
+  padding: 0.16rem 0;
+}
+
+.sidebar .form-check-input,
+.sidebar input[type="radio"],
+.sidebar input[type="checkbox"] {
+  width: 1.02em;
+  height: 1.02em;
+  margin-top: 0.16em;
+  border-color: #b9c4d3;
+  cursor: pointer;
+}
+
+.sidebar .form-check-input:checked,
+.sidebar input[type="radio"]:checked,
+.sidebar input[type="checkbox"]:checked {
+  background-color: var(--hp-accent);
+  border-color: var(--hp-accent);
+}
+
+.sidebar .form-check-label,
+.sidebar .radio label,
+.sidebar .checkbox label {
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.sidebar .shiny-options-group {
+  margin-top: 0.15rem;
+}
+
+/* --------------------------------------------------------------------------
+   7. Sidebar content blocks
+   -------------------------------------------------------------------------- */
+.viz-note {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--hp-ink-2);
+  background: #ffffff;
+  border: 1px solid var(--hp-line);
+  border-left: 3px solid var(--hp-accent);
+  border-radius: var(--hp-radius-sm);
+  padding: 0.75rem 0.85rem;
+  box-shadow: var(--hp-shadow-sm);
+}
+
+.viz-note strong {
+  display: block;
+  margin-bottom: 0.22rem;
+  color: var(--hp-ink);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.control-header {
+  margin-top: 1.35rem;
+  margin-bottom: 0.65rem;
+  font-weight: 750;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--hp-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.control-header::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--hp-line);
+}
+
+.small-muted {
+  color: var(--hp-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  background: #f1f5f9;
+  border-radius: var(--hp-radius-sm);
+  padding: 0.55rem 0.7rem;
+  margin-top: 0.5rem;
+}
+
+/* --------------------------------------------------------------------------
+   8. Figure 4 sidebar
+   -------------------------------------------------------------------------- */
+.figure4-sidebar {
+  background: linear-gradient(180deg, #f8fbfd 0%, #f0f6fc 100%) !important;
+  border-left: 4px solid #56B4E9 !important;
+}
+
+.figure4-sidebar .control-header,
+.figure4-sidebar .viz-note strong {
+  color: #2f5f8f;
+}
+
+.figure4-sidebar .viz-note {
+  border-left-color: #56B4E9;
+}
+
+.figure4-sidebar .small-muted {
+  color: #5f6f82;
+  background: #e8f1fa;
+}
+
+.figure4-legend-panel {
+  margin-top: 0.2rem;
+  background: #ffffff;
+  border: 1px solid #dbe6f2;
+  border-radius: var(--hp-radius);
+  padding: 0.95rem 0.95rem 0.85rem;
+  box-shadow: var(--hp-shadow-sm);
+}
+
+.figure4-legend-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.012em;
+  color: var(--hp-ink);
+  margin-bottom: 0.3rem;
+}
+
+.figure4-legend-hint,
+.figure4-footer-hint {
+  font-size: 0.9rem;
+  line-height: 1.48;
+  color: #5f6f82;
+}
+
+.figure4-legend-hint {
+  margin-bottom: 0.95rem;
+}
+
+.figure4-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 0.78rem;
+}
+
+.figure4-grp-label {
+  width: 190px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.26rem 0.34rem 0.26rem 0.1rem;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s, opacity 0.12s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.figure4-grp-label,
+.figure4-grp-label:hover,
+.figure4-grp-label:focus,
+.figure4-grp-label:active,
+.figure4-grp-label:visited {
+  text-decoration: none !important;
+  color: inherit;
+}
+
+.figure4-grp-label:hover {
+  background: #eef6ff;
+  border-color: #c4daf2;
+}
+
+.figure4-grp-label.active {
+  border-color: #4a90d9;
+  background: #eaf3ff;
+  box-shadow: 0 0 0 1px #4a90d9;
+}
+
+.figure4-grp-label.excluded {
+  opacity: 0.32;
+  cursor: default;
+  pointer-events: none;
+}
+
+.figure4-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.1);
+}
+
+.figure4-grp-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.95rem;
+  font-weight: 550;
+  color: var(--hp-ink);
+}
+
+.figure4-bar-track {
+  flex: 1 1 auto;
+  height: 16px;
+  margin: 0 0.7rem;
+  background: #f1f5f9;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.figure4-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: opacity 0.12s, width 0.2s ease;
+}
+
+.figure4-pop-label {
+  width: 74px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  color: #5f6f82;
+  white-space: nowrap;
+}
+
+.figure4-bar-axis-wrap {
+  margin-left: 201px;
+  margin-right: 74px;
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.figure4-bar-axis-line {
+  width: 100%;
+  height: 1px;
+  background: #cbd5e1;
+  margin-bottom: 0.35rem;
+}
+
+.figure4-bar-axis-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: #5f6f82;
+}
+
+.figure4-bar-axis-label {
+  margin-top: 0.32rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--hp-muted);
+}
+
+.figure4-reset-btn {
+  width: 100%;
+  margin-top: 0.75rem;
+  border-radius: var(--hp-radius-sm);
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: var(--hp-ink-2);
+  padding: 0.52rem 0.8rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  box-shadow: var(--hp-shadow-sm);
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+
+.figure4-reset-btn:hover {
+  background: #eef4fb;
+  border-color: #bfd2e8;
+  color: var(--hp-accent-dk);
+}
+
+.figure4-dropdown-wrap {
+  margin-left: 0.3rem;
+  margin-top: -0.28rem;
+  margin-bottom: 0.72rem;
+}
+
+.figure4-dropdown-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.34rem;
+  background: #ffffff;
+  border: 1px solid #d7dee8;
+  border-radius: 8px;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+}
+
+.figure4-dropdown-btn {
+  border: 1px solid #d7dee8;
+  background: #f8fafc;
+  color: #334155;
+  padding: 0.2rem 0.48rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.figure4-dropdown-btn:hover {
+  background: #eef4fb;
+  border-color: #bfd2e8;
+  color: var(--hp-ink);
+  text-decoration: none;
+}
+
+.figure4-dropdown-btn.keep {
+  font-weight: 700;
+}
+
+.figure4-dropdown-btn.close {
+  padding: 0.2rem 0.38rem;
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------------------------
+   9. Figure 5 sidebar
+   -------------------------------------------------------------------------- */
+.figure5-sidebar {
+  background: linear-gradient(180deg, #fbfbfd 0%, #f5f6fa 100%) !important;
+  border-left: 4px solid #111827 !important;
+}
+
+.figure5-sidebar .control-header,
+.figure5-sidebar .viz-note strong {
+  color: var(--hp-ink);
+}
+
+.figure5-sidebar .viz-note {
+  border-left-color: #111827;
+}
+
+.figure5-sidebar .small-muted {
+  color: #5b6472;
+}
+
+.figure5-sidebar .radio label {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.figure5-sidebar .shiny-options-group .radio {
+  border: 1px solid transparent;
+  border-radius: var(--hp-radius-sm);
+  padding: 0.34rem 0.45rem;
+  transition: background 0.14s, border-color 0.14s;
+}
+
+.figure5-sidebar .shiny-options-group .radio:hover {
+  background: #ffffff;
+  border-color: var(--hp-line);
+}
+
+/* --------------------------------------------------------------------------
+   10. Overview page
+   -------------------------------------------------------------------------- */
+.overview-page .card {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.overview-page .card-body {
+  padding: 0.35rem 0.15rem 1rem;
+}
+
+.overview-wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* Hero */
+.overview-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(1100px 380px at 92% -20%, rgba(86, 180, 233, 0.22), transparent 62%),
+    radial-gradient(760px 320px at 4% 108%, rgba(230, 159, 0, 0.14), transparent 60%),
+    linear-gradient(135deg, #ffffff 0%, #f2f7fd 52%, #eef4fb 100%);
+  border: 1px solid #dbe6f2;
+  border-radius: var(--hp-radius-lg);
+  padding: 2.5rem 2.6rem 2.2rem;
+  margin-bottom: 1.9rem;
+  box-shadow: var(--hp-shadow-lg);
+}
+
+.overview-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: linear-gradient(180deg, #E69F00, #56B4E9 38%, #CC79A7 70%, #009E73);
+}
+
+.overview-title {
+  margin: 0 0 0.85rem 0;
+  font-size: clamp(2.2rem, 3.4vw, 3.25rem);
+  line-height: 1.04;
+  font-weight: 800;
+  letter-spacing: -0.028em;
+  color: var(--hp-ink);
+}
+
+.overview-subtitle {
+  font-size: 1.1rem;
+  line-height: 1.72;
+  color: var(--hp-ink-2);
+  max-width: 900px;
+  margin: 0 0 1.35rem 0;
+}
+
+.overview-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.overview-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.95rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #c9dcf5;
+  color: var(--hp-accent-dk);
+  font-size: 0.88rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  box-shadow: var(--hp-shadow-sm);
+}
+
+/* Sections as cards */
+.overview-flow {
+  max-width: 1180px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.overview-section {
+  background: var(--hp-surface);
+  border: 1px solid var(--hp-line);
+  border-radius: var(--hp-radius);
+  box-shadow: var(--hp-shadow);
+  padding: 1.5rem 1.7rem 1.55rem;
+  margin: 0;
+}
+
+.overview-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 1.55rem;
+}
+
+.overview-section h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.14rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--hp-ink);
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--hp-line-soft);
+}
+
+.overview-section p,
+.overview-section li {
+  color: var(--hp-ink-2);
+  font-size: 0.99rem;
+  line-height: 1.72;
+}
+
+.overview-section > p:last-child {
+  margin-bottom: 0;
+}
+
+.overview-kv {
+  margin: 0 0 0.85rem 0;
+}
+
+.overview-kv:last-of-type {
+  margin-bottom: 0;
+}
+
+.overview-kv strong {
+  color: var(--hp-ink);
+  font-weight: 700;
+}
+
+/* Team members as a chip grid */
+.overview-members-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.55rem;
+}
+
+.overview-members-list li {
+  margin-bottom: 0;
+  background: var(--hp-surface-alt);
+  border: 1px solid var(--hp-line);
+  border-radius: 999px;
+  padding: 0.42rem 0.95rem;
+  font-size: 0.95rem;
+  font-weight: 550;
+  color: var(--hp-ink);
+}
+
+/* Figure guide as numbered rows */
+.overview-guide {
+  list-style: none;
+  padding-left: 0;
+  margin: 0 0 1.05rem 0;
+  counter-reset: figstep;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.overview-guide li {
+  counter-increment: figstep;
+  position: relative;
+  margin-bottom: 0;
+  padding: 0.7rem 0.9rem 0.7rem 3.05rem;
+  background: var(--hp-surface-alt);
+  border: 1px solid var(--hp-line);
+  border-radius: var(--hp-radius-sm);
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.overview-guide li:hover {
+  background: #ffffff;
+  border-color: #cfdcec;
+}
+
+.overview-guide li::before {
+  content: counter(figstep);
+  position: absolute;
+  left: 0.85rem;
+  top: 0.72rem;
+  width: 1.55rem;
+  height: 1.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: var(--hp-accent-soft);
+  color: var(--hp-accent-dk);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.overview-guide li strong {
+  color: var(--hp-ink);
+}
+
+/* Data source links as cards */
+.overview-links {
+  list-style: none;
+  padding-left: 0;
+  margin: 0 0 1.1rem 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.overview-links li {
+  margin-bottom: 0;
+  padding: 0.85rem 1rem;
+  background: var(--hp-surface-alt);
+  border: 1px solid var(--hp-line);
+  border-left: 3px solid #c9dcf5;
+  border-radius: var(--hp-radius-sm);
+  font-size: 0.95rem;
+  color: var(--hp-muted);
+  transition: border-left-color 0.14s ease, background 0.14s ease;
+}
+
+.overview-links li:hover {
+  background: #ffffff;
+  border-left-color: var(--hp-accent);
+}
+
+.overview-links a {
+  text-decoration: none;
+  font-weight: 650;
+  color: var(--hp-accent-dk);
+}
+
+.overview-links a:hover {
+  text-decoration: underline;
+}
+
+.overview-links br {
+  line-height: 2.1;
+}
+
+/* --------------------------------------------------------------------------
+   11. Responsive
+   -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .overview-section {
+    padding: 1.2rem 1.15rem;
+  }
+
+  .figure4-grp-label {
+    width: 150px;
+  }
+
+  .figure4-bar-axis-wrap {
+    margin-left: 161px;
+  }
+}
+
+@media (max-width: 700px) {
+  .quarto-dashboard-content {
+    padding: 0.7rem 0.7rem 1.2rem;
+  }
+
+  .overview-hero {
+    padding: 1.6rem 1.25rem 1.4rem;
+    border-radius: 18px;
+  }
+
+  .overview-members-list {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+
+/* --------------------------------------------------------------------------
+   12. Print
+   -------------------------------------------------------------------------- */
+@media print {
+  .quarto-dashboard .navbar,
+  .quarto-dashboard-content .sidebar {
+    display: none !important;
+  }
+
+  .quarto-dashboard-content .card {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}
+</style>
+
+```{r}
+#| context: setup
+
+library(dplyr)
+library(ggplot2)
+library(scales)
+library(ggiraph)
+library(stringr)
+library(readxl)
+library(tidyr)
+library(readr)
+library(shiny)
+library(sf)
+library(purrr)
+
+`%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
+
+
+wellbeing_toronto_housing <- read_excel(
+  "wellbeing-toronto-housing.xlsx",
+  sheet = "RawDataRef_2011"
+)
+
+neighbourhood_profiles_2021 <- read_excel(
+  "neighbourhood-profiles-2021-158-model.xlsx"
+)
+
+housingto_open_data <- read_excel("HousingTO Open Data.xlsx")
+toronto_sf <- read_sf("Neighbourhoods - 4326.geojson", quiet = TRUE)
+
+
+if (ncol(housingto_open_data) >= 6) {
+  names(housingto_open_data)[1:6] <- c("Target", "2020", "2021", "2022", "2023", "2024")
+}
+
+
+profiles_long <- neighbourhood_profiles_2021 |>
+  rename(metric = `Neighbourhood Name`) |>
+  pivot_longer(
+    cols = -metric,
+    names_to = "Neighbourhood",
+    values_to = "value"
+  ) |>
+  mutate(
+    metric = str_squish(metric),
+    Neighbourhood = str_squish(Neighbourhood),
+    value = parse_number(as.character(value)),
+    value = if_else(value < 0, NA_real_, value)
+  )
+
+profiles_wide <- profiles_long |>
+  filter(
+    metric %in% c(
+      "Average monthly shelter costs for owned dwellings ($)",
+      "Average monthly shelter costs for rented dwellings ($)",
+      "% of owner households spending 30% or more of its income on shelter costs",
+      "% of tenant households spending 30% or more of its income on shelter costs",
+      "Employment income (%)",
+      "Government transfers (%)",
+      "Average total income in 2020 ($)"
+    )
+  ) |>
+  mutate(
+    variable = case_when(
+      metric == "Average monthly shelter costs for owned dwellings ($)" ~ "owned_shelter_cost",
+      metric == "Average monthly shelter costs for rented dwellings ($)" ~ "rented_shelter_cost",
+      metric == "% of owner households spending 30% or more of its income on shelter costs" ~ "owner_30plus_shelter_pct",
+      metric == "% of tenant households spending 30% or more of its income on shelter costs" ~ "tenant_30plus_shelter_pct",
+      metric == "Employment income (%)" ~ "employment_income_pct",
+      metric == "Government transfers (%)" ~ "government_transfers_pct",
+      metric == "Average total income in 2020 ($)" ~ "average_total_income"
+    )
+  ) |>
+  select(Neighbourhood, variable, value) |>
+  distinct() |>
+  pivot_wider(
+    names_from = variable,
+    values_from = value,
+    values_fn = mean
+  )
+
+figure2_choices <- profiles_wide |>
+  distinct(Neighbourhood) |>
+  arrange(Neighbourhood) |>
+  pull(Neighbourhood)
+
+toronto_sf <- toronto_sf |>
+  rename(Neighbourhood = AREA_NAME) |>
+  mutate(Neighbourhood = str_squish(Neighbourhood))
+
+map_data_sf <- left_join(toronto_sf, profiles_wide, by = "Neighbourhood")
+
+#HousingTO
+housingto_clean <- housingto_open_data |>
+  filter(
+    Target %in% c(
+      "New Homes in Toronto Community Housing Revitalization Communities",
+      "New Rent-Controlled Market, Affordable, RGI Homes Approved",
+      "Supportive Homes Approved",
+      "New Homes For Indigenous, By Indigenous",
+      "New Homes for Women-led and Gender Diverse Households"
+    )
+  ) |>
+  select(Target, `2020`, `2021`, `2022`, `2023`, `2024`) |>
+  pivot_longer(
+    cols = c(`2020`, `2021`, `2022`, `2023`, `2024`),
+    names_to = "Year",
+    values_to = "housing_units"
+  ) |>
+  mutate(
+    Year = as.numeric(Year),
+    housing_units = as.numeric(housing_units),
+    housing_units = if_else(housing_units < 0, NA_real_, housing_units),
+    target_group = case_when(
+      Target == "New Homes in Toronto Community Housing Revitalization Communities" ~ "New Homes in TCH Revitalization",
+      Target == "New Rent-Controlled Market, Affordable, RGI Homes Approved" ~ "Affordable & RGI Housing",
+      Target == "Supportive Homes Approved" ~ "Supportive Housing",
+      Target == "New Homes For Indigenous, By Indigenous" ~ "Indigenous Housing",
+      Target == "New Homes for Women-led and Gender Diverse Households" ~ "Women & Gender-Diverse Housing"
+    )
+  )
+
+program_colors <- c(
+  "New Homes in TCH Revitalization" = "#E63946",
+  "Affordable & RGI Housing" = "#457B9D",
+  "Supportive Housing" = "#2A9D8F",
+  "Indigenous Housing" = "#E9C46A",
+  "Women & Gender-Diverse Housing" = "#9B5DE5"
+)
+
+program_control_values <- setdiff(
+  names(program_colors),
+  "Affordable & RGI Housing"
+)
+
+program_choice_names <- lapply(
+  program_control_values,
+  function(nm) {
+    shiny::tags$span(
+      style = paste0("color:", unname(program_colors[[nm]]), "; font-weight: 600;"),
+      nm
+    )
+  }
+)
+
+#wellbeing
+wellbeing_clean <- wellbeing_toronto_housing |>
+  mutate(
+    `Neighbourhood Id` = parse_number(as.character(`Neighbourhood Id`)),
+    `Home Prices` = parse_number(as.character(`Home Prices`)),
+    `Mid-Century Highrise Population` = parse_number(as.character(`Mid-Century Highrise Population`)),
+    `Percent Mid-Century Highrise Population` = parse_number(as.character(`Percent Mid-Century Highrise Population`))
+  ) |>
+  mutate(
+    `Home Prices` = if_else(`Home Prices` < 0, NA_real_, `Home Prices`),
+    `Mid-Century Highrise Population` = if_else(`Mid-Century Highrise Population` < 0, NA_real_, `Mid-Century Highrise Population`),
+    `Percent Mid-Century Highrise Population` = if_else(`Percent Mid-Century Highrise Population` < 0, NA_real_, `Percent Mid-Century Highrise Population`)
+  ) |>
+  mutate(
+    regional_group = case_when(
+      `Neighbourhood Id` >= 1 & `Neighbourhood Id` <= 22 ~ "Etobicoke York",
+      `Neighbourhood Id` >= 23 & `Neighbourhood Id` <= 53 ~ "North York",
+      `Neighbourhood Id` >= 54 & `Neighbourhood Id` <= 115 ~ "Toronto and East York",
+      `Neighbourhood Id` >= 116 & `Neighbourhood Id` <= 140 ~ "Scarborough",
+      TRUE ~ NA_character_
+    )
+  ) |>
+  filter(
+    !is.na(Neighbourhood),
+    !is.na(`Neighbourhood Id`),
+    !is.na(`Home Prices`),
+    !is.na(`Mid-Century Highrise Population`),
+    !is.na(`Percent Mid-Century Highrise Population`),
+    !is.na(regional_group)
+  ) |>
+  select(
+    Neighbourhood,
+    `Neighbourhood Id`,
+    `Home Prices`,
+    `Mid-Century Highrise Population`,
+    `Percent Mid-Century Highrise Population`,
+    regional_group
+  )
+
+cb_palette <- c(
+  "Toronto and East York" = "#E69F00",
+  "North York" = "#56B4E9",
+  "Etobicoke York" = "#CC79A7",
+  "Scarborough" = "#009E73"
+)
+
+group_totals <- wellbeing_clean |>
+  summarise(
+    total_pop = sum(`Mid-Century Highrise Population`, na.rm = TRUE),
+    .by = regional_group
+  ) |>
+  mutate(
+    regional_group = factor(
+      regional_group,
+      levels = c(
+        "Toronto and East York",
+        "North York",
+        "Etobicoke York",
+        "Scarborough"
+      )
+    )
+  ) |>
+  arrange(desc(total_pop))
+
+all_groups <- as.character(group_totals$regional_group)
+max_group_total <- max(group_totals$total_pop, na.rm = TRUE)
+
+
+income_distribution <- profiles_wide |>
+  left_join(
+    wellbeing_clean |> select(Neighbourhood, regional_group),
+    by = "Neighbourhood"
+  ) |>
+  filter(!is.na(regional_group)) |>
+  mutate(
+    other_income_pct = 100 - employment_income_pct - government_transfers_pct
+  ) |>
+  select(
+    regional_group,
+    employment_income_pct,
+    government_transfers_pct,
+    other_income_pct
+  ) |>
+  pivot_longer(
+    cols = c(
+      employment_income_pct,
+      government_transfers_pct,
+      other_income_pct
+    ),
+    names_to = "income_source",
+    values_to = "prop"
+  ) |>
+  mutate(
+    income_source = case_when(
+      income_source == "employment_income_pct" ~ "Employment income",
+      income_source == "government_transfers_pct" ~ "Government transfers",
+      income_source == "other_income_pct" ~ "Other income"
+    )
+  ) |>
+  summarise(
+    prop = mean(prop, na.rm = TRUE),
+    .by = c(regional_group, income_source)
+  ) |>
+  mutate(
+    regional_group = factor(
+      regional_group,
+      levels = c(
+        "Toronto and East York",
+        "North York",
+        "Etobicoke York",
+        "Scarborough"
+      )
+    ),
+    prop = prop / 100
+  )
+
+income_fill_colors <- c(
+  "Employment income" = "#d8b4e2",
+  "Government transfers" = "#9ecae1",
+  "Other income" = "#c7e9c0"
+)
+
+income_choice_names <- lapply(
+  names(income_fill_colors),
+  function(nm) {
+    shiny::tags$span(
+      shiny::tags$span(
+        style = paste0(
+          "display:inline-block; width:13px; height:13px; margin-right:8px; ",
+          "border-radius:2px; vertical-align:-1px; background:", unname(income_fill_colors[[nm]]), "; ",
+          "border:1.6px solid #111827;"
+        )
+      ),
+      shiny::tags$span(
+        style = "font-weight: 600; color: #1f2937;",
+        nm
+      )
+    )
+  }
+)
+
+
+build_comparison_display <- function(base_df, chosen) {
+
+  chosen <- chosen %||% character(0)
+
+  selected_df <- base_df |>
+    filter(Neighbourhood %in% chosen) |>
+    mutate(sel_order = match(Neighbourhood, chosen)) |>
+    arrange(sel_order) |>
+    mutate(
+      display_label = paste0("Selected: ", Neighbourhood),
+      row_type = "selected"
+    ) |>
+    select(Neighbourhood, shelter_cost, display_label, row_type)
+
+  remaining_df <- base_df |>
+    filter(!Neighbourhood %in% chosen)
+
+  if (nrow(remaining_df) <= 12) {
+    other_df <- remaining_df |>
+      mutate(display_label = Neighbourhood, row_type = "other") |>
+      select(Neighbourhood, shelter_cost, display_label, row_type)
+
+    return(bind_rows(selected_df, other_df))
+  }
+
+  top_df <- remaining_df |>
+    slice_head(n = 4) |>
+    mutate(display_label = Neighbourhood, row_type = "top") |>
+    select(Neighbourhood, shelter_cost, display_label, row_type)
+
+  mid_start <- max(floor((nrow(remaining_df) - 4) / 2), 1)
+  mid_idx <- seq.int(mid_start, min(mid_start + 3, nrow(remaining_df)))
+  mid_df <- remaining_df[mid_idx, , drop = FALSE] |>
+    mutate(display_label = Neighbourhood, row_type = "middle") |>
+    select(Neighbourhood, shelter_cost, display_label, row_type)
+
+  bottom_df <- remaining_df |>
+    slice_tail(n = 4) |>
+    mutate(display_label = Neighbourhood, row_type = "bottom") |>
+    select(Neighbourhood, shelter_cost, display_label, row_type)
+
+  ellipsis_row <- tibble(
+    Neighbourhood = NA_character_,
+    shelter_cost = NA_real_,
+    display_label = "...",
+    row_type = "ellipsis"
+  )
+
+  bind_rows(
+    selected_df,
+    top_df,
+    ellipsis_row,
+    mid_df,
+    ellipsis_row,
+    bottom_df
+  )
+}
+```
+
+# Overview {.overview-page orientation="columns"}
+
+## Column
+
+::: {.overview-wrap}
+
+::: {.overview-hero}
+::: {.overview-title}
+Housing Pressure in Toronto
+:::
+
+<p class="overview-subtitle">Explore where housing pressure is strongest across Toronto and how it varies at the neighbourhood level through maps, comparisons, trends, and income context.</p>
+
+::: {.overview-chip-row}
+<span class="overview-chip">STA313 Project</span>
+<span class="overview-chip">Team: DataHome Viz</span>
+:::
+:::
+
+::: {.overview-flow}
+
+::: {.overview-section}
+### Project snapshot
+<p class="overview-kv"><strong>Overview.</strong> Where is housing pressure worst in Toronto, and how does it vary at the neighbourhood level? This dashboard brings together shelter costs, housing program trends, home-price context, and income composition to help users compare Toronto neighbourhoods through one coherent story.</p>
+<p class="overview-kv"><strong>Main question.</strong> Where is housing pressure worst in Toronto, and how does it vary at the neighbourhood level?</p>
+<p class="overview-kv"><strong>Focus.</strong> A neighbourhood-level analysis of affordability, housing stress, housing programs, home-price context, and related urban conditions across Toronto.</p>
+:::
+
+::: {.overview-section}
+### Team members
+<p><strong>Team name.</strong> DataHome Viz</p>
+<ul class="overview-members-list">
+  <li>Dabin Choi</li>
+  <li>Qingwen Jia</li>
+  <li>Tian Jin</li>
+  <li>Yixin Li</li>
+  <li>Guanzhe Yun</li>
+  <li>Zihao Zhang</li>
+</ul>
+:::
+
+::: {.overview-section}
+### What each figure shows
+<ul class="overview-guide">
+  <li><strong>Figure 1:</strong> a housing pressure map comparing average monthly shelter costs across neighbourhoods.</li>
+  <li><strong>Figure 2:</strong> a shelter cost comparison chart for focused neighbourhood comparison.</li>
+  <li><strong>Figure 3:</strong> a time-series view of approved housing units by program from 2020 to 2024.</li>
+  <li><strong>Figure 4:</strong> a scatter plot relating home prices to mid-century highrise population share by region.</li>
+  <li><strong>Figure 5:</strong> a stacked bar chart comparing neighbourhood income composition across Toronto’s regional groups.</li>
+</ul>
+<p class="overview-kv">Use the figure tabs at the top to move from this overview page into the five interactive views.</p>
+:::
+
+::: {.overview-section}
+### Data sources and files
+<p>
+<strong>Datasets Used.</strong> This project uses multiple City of Toronto open datasets to analyze housing pressure across neighbourhoods. 
+Click each dataset name below to visit the official data source.
+</p >
+
+<ul class="overview-links">
+  <li>
+    <a href=" " target="_blank">
+    Wellbeing Toronto - Housing Indicators
+    </a >
+    <br>
+    Provides neighbourhood-level housing metrics including average shelter costs, home prices, and mid-century highrise population used to assess housing pressure.
+  </li>
+
+  <li>
+    <a href="https://open.toronto.ca/dataset/housing-to-action-plan/" target="_blank">
+    Housing to Action Plan Development &amp; Supply
+    </a >
+    <br>
+    Contains approved housing units by program from 2020–2024, used to examine housing supply trends across Toronto.
+  </li>
+
+  <li>
+    <a href="https://open.toronto.ca/dataset/neighbourhood-profiles/" target="_blank">
+    Neighbourhood Profiles
+    </a >
+    <br>
+    Provides demographic and socioeconomic indicators, including income composition and regional characteristics for neighbourhood-level comparisons.
+  </li>
+</ul>
+
+<p>
+These datasets were combined at the neighbourhood level to analyze affordability, housing supply, density, and income patterns across Toronto.
+</p >
+:::
+
+:::
+:::
+
+# Figure 1 — Housing pressure map {orientation="columns"}
+
+## Column
+```{r}
+girafeOutput("figure1_map", width = "100%", height = "88vh")
+```
+
+## {.sidebar width="350px"}
+
+<div class="viz-note">
+<strong>What this shows.</strong> Compare average monthly shelter costs across Toronto neighbourhoods. The map lets users switch between owned and rented dwellings and then hover over a neighbourhood to see both the cost level and the share of households spending 30% or more of income on shelter.
+</div>
+
+<div class="control-header">Controls</div>
+
+```{r}
+selectInput(
+  "housing_type",
+  "Housing type",
+  choices = c("Owned" = "owned", "Rented" = "rented"),
+  selected = "owned"
+)
+```
+
+<div class="small-muted">Tip: hover directly on the map polygons for neighbourhood details.</div>
+
+# Figure 2 — Shelter cost comparison {orientation="columns"}
+
+## Column
+
+```{r}
+plotOutput("figure2_plot", width = "100%", height = "700px")
+```
+
+## {.sidebar width="360px"}
+
+<div class="viz-note">
+<strong>What this shows.</strong> This comparison chart focuses attention on up to two selected neighbourhoods while still keeping city-wide context. The remaining bars summarize the high, middle, and low ends of the shelter-cost distribution.
+</div>
+
+<div class="control-header">Controls</div>
+
+```{r}
+selectInput(
+  inputId = "housing_type_bar",
+  label = "Housing type",
+  choices = c("Owned" = "owned", "Rented" = "rented"),
+  selected = "owned"
+)
+
+radioButtons(
+  inputId = "sort_order_bar",
+  label = "Sort order",
+  choices = c("Descending" = "desc", "Ascending" = "asc"),
+  selected = "desc",
+  inline = TRUE
+)
+
+selectizeInput(
+  inputId = "focus_nbhd",
+  label = "Highlight up to 2 neighbourhoods",
+  choices = figure2_choices,
+  selected = NULL,
+  multiple = TRUE,
+  options = list(
+    maxItems = 2,
+    placeholder = "Search neighbourhoods"
+  )
+)
+```
+
+<div class="small-muted">Tip: Selected neighbourhoods are highlighted in orange.</div>
+
+# Figure 3 — Housing programs over time {orientation="columns"}
+
+## Column
+
+```{r}
+girafeOutput("figure3_plot", width = "100%", height = "88vh")
+```
+
+## {.sidebar width="360px"}
+
+<div class="viz-note">
+<strong>What this shows.</strong> This line chart tracks approved housing units across major HousingTO program categories from 2020 to 2024. Keeping the chart on its own page makes it easier to compare slopes, peaks, and years of change.
+</div>
+
+<div class="control-header">Controls</div>
+
+```{r}
+checkboxGroupInput(
+  "program",
+  "Programs to display",
+  choiceNames = program_choice_names,
+  choiceValues = program_control_values,
+  selected = program_control_values
+)
+```
+
+<div class="small-muted">Tip: hover over points to read the exact year and unit count.</div>
+
+# Figure 4 — Home prices and highrise population {orientation="columns"}
+
+## Column
+
+```{r}
+girafeOutput("figure4_plot", width = "100%", height = "88vh")
+```
+
+## {.sidebar .figure4-sidebar width="460px"}
+
+<div class="viz-note">
+<strong>What this shows.</strong> Each point is a neighbourhood. The chart compares home prices with the share of the population living in mid-century highrise housing, grouped by region. When only one regional group is selected, a fitted trend line is added.
+</div>
+
+<div class="control-header">Controls</div>
+
+```{r}
+tagList(
+  tags$div(
+    class = "figure4-legend-panel",
+    tags$div(class = "figure4-legend-title", "Regional Group"),
+    tags$div(
+      class = "figure4-legend-hint",
+      "Click a group name to open a small action menu. Multiple excludes supported."
+    ),
+    uiOutput("figure4_legend_rows"),
+    tags$div(
+      class = "figure4-bar-axis-wrap",
+      tags$div(class = "figure4-bar-axis-line"),
+      tags$div(
+        class = "figure4-bar-axis-ticks",
+        tags$span("0"),
+        tags$span("100K"),
+        tags$span("200K")
+      ),
+      tags$div(class = "figure4-bar-axis-label", "Mid-Century Highrise Population")
+    ),
+    actionButton(
+      "figure4_show_all",
+      "↺ Show All Groups",
+      class = "figure4-reset-btn"
+    )
+  )
+)
+```
+
+<div class="small-muted">Hover over a dot for neighbourhood details.</div>
+
+# Figure 5 — Income composition by region {orientation="columns"}
+
+## Column
+
+```{r}
+girafeOutput("figure5_plot", width = "100%", height = "88vh")
+```
+
+## {.sidebar .figure5-sidebar width="350px"}
+
+<div class="viz-note">
+<strong>What this shows.</strong> This stacked bar chart summarizes the average composition of neighbourhood income across Toronto’s major regional groups. Choosing an income source moves that category to the bottom of every bar, making it easier to compare the same component across regions from a shared baseline.
+</div>
+
+<div class="control-header">Controls</div>
+
+```{r}
+radioButtons(
+  "stack_base",
+  "Place this income source at the bottom",
+  choiceNames = income_choice_names,
+  choiceValues = names(income_fill_colors),
+  selected = "Employment income"
+)
+```
+
+<div class="small-muted">Tip: Hover over each segment to see the exact percentage.</div>
+
+```{r}
+#| context: server
+
+output$figure1_map <- renderGirafe({
+
+  cost_var <- if (input$housing_type == "owned") {
+    "owned_shelter_cost"
+  } else {
+    "rented_shelter_cost"
+  }
+
+  pct_var <- if (input$housing_type == "owned") {
+    "owner_30plus_shelter_pct"
+  } else {
+    "tenant_30plus_shelter_pct"
+  }
+
+  plot_sf <- map_data_sf |>
+    mutate(
+      shelter_cost = .data[[cost_var]],
+      shelter_pct = .data[[pct_var]],
+      tooltip_text = paste0(
+        "<b>", Neighbourhood, "</b><br/>",
+        "Housing type: ", str_to_title(input$housing_type), "<br/>",
+        "Avg. monthly shelter cost: ",
+        ifelse(is.na(shelter_cost), "NA", dollar(shelter_cost)), "<br/>",
+        "Households spending 30%+ on shelter: ",
+        ifelse(is.na(shelter_pct), "NA", paste0(number(shelter_pct, accuracy = 0.1), "%"))
+      )
+    )
+
+  p <- ggplot(plot_sf) +
+    geom_sf_interactive(
+      aes(
+        fill = shelter_cost,
+        tooltip = tooltip_text,
+        data_id = Neighbourhood
+      ),
+      color = "white",
+      linewidth = 0.25
+    ) +
+    {
+      if (input$housing_type == "owned") {
+        scale_fill_gradient(
+          low = "#f7e6d8",
+          high = "#a54a17",
+          na.value = "grey90",
+          labels = label_dollar(),
+          name = "Avg. monthly\nshelter cost"
+        )
+      } else {
+        scale_fill_gradient(
+          low = "#deedf4",
+          high = "#2b6c8a",
+          na.value = "grey90",
+          labels = label_dollar(),
+          name = "Avg. monthly\nshelter cost"
+        )
+      }
+    } +
+    coord_sf(datum = NA) +
+    theme_void(base_size = 14) +
+    theme(
+      legend.title = element_text(size = 12, face = "bold"),
+      legend.text = element_text(size = 11)
+    )
+
+  girafe(
+    ggobj = p,
+    width_svg = 18,
+    height_svg = 12,
+    options = list(
+      opts_hover(css = "stroke:black;stroke-width:1.2;"),
+      opts_selection(type = "none"),
+      opts_tooltip(css = paste(
+        "background-color:white;",
+        "color:black;",
+        "padding:8px 10px;",
+        "border:1px solid #999;",
+        "border-radius:4px;",
+        "font-size:12px;"
+      )),
+      opts_sizing(rescale = TRUE)
+    )
+  )
+})
+
+output$figure2_plot <- renderPlot(
+  {
+    req((session$clientData$output_figure2_plot_width %||% 0) > 250)
+    req((session$clientData$output_figure2_plot_height %||% 0) > 250)
+
+    cost_var <- if (input$housing_type_bar == "owned") {
+      "owned_shelter_cost"
+    } else {
+      "rented_shelter_cost"
+    }
+
+    base_df <- profiles_wide |>
+      mutate(shelter_cost = .data[[cost_var]]) |>
+      filter(!is.na(shelter_cost))
+
+    if (input$sort_order_bar == "desc") {
+      base_df <- base_df |> arrange(desc(shelter_cost), Neighbourhood)
+    } else {
+      base_df <- base_df |> arrange(shelter_cost, Neighbourhood)
+    }
+
+    display_df <- build_comparison_display(base_df, input$focus_nbhd) |>
+      mutate(
+        plot_id = paste0("row_", seq_len(n())),
+        fill_group = if_else(row_type == "selected", "Selected", "Other")
+      )
+
+    label_map <- setNames(display_df$display_label, display_df$plot_id)
+    y_limits <- rev(display_df$plot_id)
+    max_cost <- max(display_df$shelter_cost, na.rm = TRUE)
+
+    ggplot() +
+      geom_col(
+        data = display_df |> filter(row_type != "ellipsis"),
+        aes(x = shelter_cost, y = plot_id, fill = fill_group),
+        width = 0.72
+      ) +
+      geom_text(
+        data = display_df |> filter(row_type != "ellipsis"),
+        aes(x = shelter_cost, y = plot_id, label = dollar(shelter_cost)),
+        hjust = -0.1,
+        size = 4
+      ) +
+      geom_text(
+        data = display_df |> filter(row_type == "ellipsis"),
+        aes(x = max_cost * 0.05, y = plot_id, label = "..."),
+        hjust = 0,
+        size = 5.5
+      ) +
+      scale_y_discrete(
+        limits = y_limits,
+        labels = function(x) unname(label_map[x])
+      ) +
+      scale_fill_manual(
+        values = c("Selected" = "#f28e2b", "Other" = "grey75"),
+        guide = "none"
+      ) +
+      scale_x_continuous(
+        labels = label_dollar(),
+        expand = expansion(mult = c(0, 0.16))
+      ) +
+      labs(
+        x = "Average monthly shelter cost ($)",
+        y = NULL
+      ) +
+      coord_cartesian(clip = "off") +
+      theme_minimal(base_size = 17) +
+      theme(
+        axis.text.y = element_text(size = 11),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.title.x = element_text(face = "bold"),
+        plot.margin = margin(12, 80, 12, 12)
+      )
+  },
+  res = 96,
+  width = function() max(700, session$clientData$output_figure2_plot_width %||% 700),
+  height = function() max(650, session$clientData$output_figure2_plot_height %||% 650)
+)
+
+output$figure3_plot <- renderGirafe({
+
+  filtered_data <- housingto_clean |>
+    filter(target_group %in% input$program) |>
+    mutate(target_group = factor(target_group, levels = names(program_colors)))
+
+  p <- ggplot(
+    filtered_data,
+    aes(
+      x = Year,
+      y = housing_units,
+      color = target_group,
+      group = target_group
+    )
+  ) +
+    geom_line_interactive(
+      aes(data_id = target_group),
+      linewidth = 1.35
+    ) +
+    geom_point_interactive(
+      aes(
+        tooltip = paste0(
+          "<b>", target_group, "</b><br/>",
+          "Housing units: ", comma(housing_units), "<br/>",
+          "Year: ", Year
+        ),
+        data_id = target_group
+      ),
+      size = 3.6
+    ) +
+    scale_color_manual(values = program_colors) +
+    scale_x_continuous(
+      breaks = sort(unique(housingto_clean$Year)),
+      expand = expansion(mult = 0.05)
+    ) +
+    scale_y_continuous(
+      labels = comma,
+      expand = expansion(mult = c(0.05, 0.15))
+    ) +
+    labs(
+      x = "Year",
+      y = "Approved housing units",
+      color = "Housing program"
+    ) +
+    theme_minimal(base_size = 15) +
+    theme(
+      panel.grid.minor = element_blank(),
+      axis.title = element_text(face = "bold"),
+      legend.title = element_text(face = "bold")
+    )
+
+  girafe(
+    ggobj = p,
+    width_svg = 18,
+    height_svg = 12,
+    options = list(
+      opts_hover(css = "stroke-width:3;"),
+      opts_hover_inv(css = "opacity:0.18;"),
+      opts_selection(type = "none"),
+      opts_tooltip(css = paste(
+        "background-color:#1C1C2E;",
+        "color:#F7FAFC;",
+        "padding:10px 14px;",
+        "border-radius:8px;",
+        "font-size:13px;"
+      )),
+      opts_sizing(rescale = TRUE)
+    )
+  )
+})
+
+shown_groups <- reactiveVal(all_groups)
+figure4_keep_only_mode <- reactiveVal(FALSE)
+figure4_menu_group <- reactiveVal(NULL)
+
+observeEvent(input$figure4_pick_group, {
+  grp <- input$figure4_pick_group
+  req(!is.null(grp), nzchar(grp))
+
+  current_menu <- figure4_menu_group()
+  if (!is.null(current_menu) && identical(current_menu, grp)) {
+    figure4_menu_group(NULL)
+  } else {
+    figure4_menu_group(grp)
+  }
+})
+
+observeEvent(input$figure4_group_action, {
+  payload <- input$figure4_group_action
+  req(!is.null(payload), nzchar(payload))
+
+  parts <- strsplit(payload, "||", fixed = TRUE)[[1]]
+  req(length(parts) == 2)
+
+  grp <- parts[1]
+  action <- parts[2]
+
+  if (action == "keep") {
+    shown_groups(grp)
+    figure4_keep_only_mode(TRUE)
+    figure4_menu_group(NULL)
+  }
+
+  if (action == "exclude") {
+    current <- shown_groups()
+    remaining <- setdiff(current, grp)
+
+    if (length(remaining) >= 1) {
+      shown_groups(remaining)
+      figure4_keep_only_mode(FALSE)
+    }
+
+    figure4_menu_group(NULL)
+  }
+
+  if (action == "close") {
+    figure4_menu_group(NULL)
+  }
+})
+
+observeEvent(input$figure4_show_all, {
+  shown_groups(all_groups)
+  figure4_keep_only_mode(FALSE)
+  figure4_menu_group(NULL)
+})
+
+output$figure4_legend_rows <- renderUI({
+  showing <- shown_groups()
+  solo_mode <- figure4_keep_only_mode()
+  open_group <- figure4_menu_group()
+
+  rows <- lapply(all_groups, function(g) {
+    pop_val <- group_totals$total_pop[as.character(group_totals$regional_group) == g]
+    bar_pct <- round(100 * pop_val / max_group_total)
+    is_shown <- g %in% showing
+    is_solo <- solo_mode && length(showing) == 1 && identical(showing, g)
+    is_open <- is_shown && !is.null(open_group) && identical(open_group, g)
+    hex <- unname(cb_palette[[g]])
+    label_class <- paste(
+      "figure4-grp-label",
+      if (is_solo) "active" else "",
+      if (!is_shown) "excluded" else ""
+    )
+    onclick_js <- if (is_shown) {
+      paste0(
+        "Shiny.setInputValue('figure4_pick_group', '",
+        g,
+        "', {priority: 'event'}); return false;"
+      )
+    } else {
+      "return false;"
+    }
+
+    row_main <- tags$div(
+      class = "figure4-legend-row",
+      tags$a(
+        href = "#",
+        class = label_class,
+        onclick = onclick_js,
+        tags$span(
+          class = "figure4-swatch",
+          style = paste0("background:", hex, ";")
+        ),
+        tags$span(class = "figure4-grp-name", g)
+      ),
+      tags$div(
+        class = "figure4-bar-track",
+        tags$div(
+          class = "figure4-bar-fill",
+          style = paste0(
+            "width:", bar_pct, "%; background:", hex, "; opacity:",
+            if (is_shown) 1 else 0.2, ";"
+          )
+        )
+      ),
+      tags$div(
+        class = "figure4-pop-label",
+        style = if (!is_shown) "opacity:0.32;" else "",
+        comma(pop_val)
+      )
+    )
+
+    if (!is_open) {
+      return(row_main)
+    }
+
+    dropdown_row <- tags$div(
+      class = "figure4-dropdown-wrap",
+      tags$div(
+        class = "figure4-dropdown-menu",
+        tags$a(
+          href = "#",
+          class = "figure4-dropdown-btn keep",
+          onclick = paste0(
+            "Shiny.setInputValue('figure4_group_action', '", g, "||keep', {priority: 'event'}); return false;"
+          ),
+          "Keep Only"
+        ),
+        tags$a(
+          href = "#",
+          class = "figure4-dropdown-btn",
+          onclick = paste0(
+            "Shiny.setInputValue('figure4_group_action', '", g, "||exclude', {priority: 'event'}); return false;"
+          ),
+          "Exclude"
+        ),
+        tags$a(
+          href = "#",
+          class = "figure4-dropdown-btn close",
+          onclick = paste0(
+            "Shiny.setInputValue('figure4_group_action', '", g, "||close', {priority: 'event'}); return false;"
+          ),
+          "×"
+        )
+      )
+    )
+
+    tagList(row_main, dropdown_row)
+  })
+
+  do.call(tagList, rows)
+})
+
+output$figure4_plot <- renderGirafe({
+
+  showing <- shown_groups()
+  req(length(showing) >= 1)
+
+  df_plot <- wellbeing_clean |>
+    filter(regional_group %in% showing) |>
+    mutate(
+      tooltip_text = paste0(
+        "<b>", Neighbourhood, "</b><br/>",
+        "Region: ", regional_group, "<br/>",
+        "Home price: ", dollar(`Home Prices`), "<br/>",
+        "Highrise population share: ",
+        number(`Percent Mid-Century Highrise Population`, accuracy = 0.1), "%<br/>",
+        "Highrise population: ",
+        comma(`Mid-Century Highrise Population`)
+      )
+    )
+
+  one_only <- length(showing) == 1
+
+  p <- ggplot(
+    df_plot,
+    aes(
+      x = `Home Prices`,
+      y = `Percent Mid-Century Highrise Population`,
+      fill = regional_group
+    )
+  )
+
+  if (one_only) {
+    p <- p + geom_smooth(
+      method = "lm",
+      se = FALSE,
+      color = "grey40",
+      linetype = "dashed",
+      linewidth = 0.95,
+      show.legend = FALSE
+    )
+  }
+
+  p <- p +
+    geom_point_interactive(
+      aes(
+        tooltip = tooltip_text,
+        data_id = Neighbourhood
+      ),
+      size = 3.6,
+      alpha = 0.88,
+      shape = 21,
+      stroke = 0.3,
+      color = "white"
+    ) +
+    scale_fill_manual(values = cb_palette, guide = "none") +
+    scale_x_continuous(
+      labels = label_dollar(scale = 1e-6, suffix = "M", accuracy = 0.5),
+      breaks = c(500000, 1000000, 1500000, 2000000),
+      limits = c(150000, 2100000),
+      expand = expansion(mult = c(0.01, 0.02))
+    ) +
+    scale_y_continuous(
+      labels = label_percent(scale = 1, accuracy = 1),
+      limits = c(-2, 83),
+      expand = expansion(mult = c(0, 0.02))
+    ) +
+    labs(
+      x = "Home prices (CAD)",
+      y = "% mid-century highrise population"
+    ) +
+    theme_minimal(base_size = 15) +
+    theme(
+      panel.grid.minor = element_blank(),
+      panel.grid.major = element_line(colour = "grey90", linewidth = 0.4),
+      axis.title = element_text(colour = "grey25", size = 15, face = "bold"),
+      axis.text = element_text(colour = "grey35", size = 12)
+    )
+
+  girafe(
+    ggobj = p,
+    width_svg = 18,
+    height_svg = 12,
+    options = list(
+      opts_hover(css = "fill-opacity:1; stroke:black; stroke-width:1.5px; r:5px;"),
+      opts_tooltip(css = paste(
+        "background:white;",
+        "border:1px solid #ccc;",
+        "border-radius:6px;",
+        "padding:8px 12px;",
+        "font-size:13px;",
+        "box-shadow:2px 2px 6px rgba(0,0,0,0.15);"
+      )),
+      opts_sizing(rescale = TRUE)
+    )
+  )
+})
+
+output$figure5_plot <- renderGirafe({
+
+  all_sources <- c("Employment income", "Government transfers", "Other income")
+
+  
+  ordered_sources <- c(
+    input$stack_base,
+    setdiff(all_sources, input$stack_base)
+  )
+
+  plot_data <- income_distribution |>
+    mutate(
+      regional_group = factor(
+        regional_group,
+        levels = c(
+          "Toronto and East York",
+          "North York",
+          "Etobicoke York",
+          "Scarborough"
+        )
+      ),
+      income_source = factor(income_source, levels = ordered_sources)
+    ) |>
+    arrange(regional_group, income_source) |>
+    group_by(regional_group) |>
+    mutate(
+      ymax = cumsum(prop),
+      ymin = ymax - prop,
+      x_center = match(as.character(regional_group), levels(regional_group)),
+      tooltip_text = paste0(
+        "<b>", regional_group, "</b><br/>",
+        income_source, ": ",
+        percent(prop, accuracy = 0.1)
+      )
+    ) |>
+    ungroup()
+
+  p <- ggplot(plot_data) +
+    geom_rect_interactive(
+      aes(
+        xmin = x_center - 0.36,
+        xmax = x_center + 0.36,
+        ymin = ymin,
+        ymax = ymax,
+        fill = income_source,
+        tooltip = tooltip_text,
+        data_id = paste(regional_group, income_source)
+      ),
+      colour = "white",
+      linewidth = 0.45
+    ) +
+    scale_x_continuous(
+      breaks = seq_along(levels(plot_data$regional_group)),
+      labels = levels(plot_data$regional_group),
+      expand = expansion(add = 0.7)
+    ) +
+    scale_y_continuous(
+      labels = percent_format(accuracy = 1),
+      expand = c(0, 0),
+      limits = c(0, 1)
+    ) +
+    scale_fill_manual(
+      values = income_fill_colors,
+      breaks = all_sources,
+      guide = guide_legend(title.position = "top", title.hjust = 0, byrow = TRUE)
+    ) +
+    labs(
+      x = "Regional group",
+      y = "Share of total neighbourhood income",
+      fill = "Income source"
+    ) +
+    theme_minimal(base_size = 16) +
+    theme(
+      legend.text = element_text(size = 12),
+      legend.title = element_text(face = "bold", size = 13),
+      axis.title.x = element_text(size = 15, face = "bold", margin = margin(t = 10)),
+      axis.title.y = element_text(size = 15, face = "bold", margin = margin(r = 10)),
+      axis.text.x = element_text(size = 12, angle = 18, hjust = 1),
+      axis.text.y = element_text(size = 12),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor = element_blank(),
+      legend.position = "top"
+    )
+
+  girafe(
+    ggobj = p,
+    width_svg = 18,
+    height_svg = 12,
+    options = list(
+      opts_hover(css = "stroke:#444;stroke-width:1px;"),
+      opts_selection(type = "none"),
+      opts_tooltip(css = paste(
+        "background:white;",
+        "border:1px solid #ccc;",
+        "border-radius:6px;",
+        "padding:8px 12px;",
+        "font-size:13px;"
+      )),
+      opts_sizing(rescale = TRUE)
+    )
+  )
+})
+```
